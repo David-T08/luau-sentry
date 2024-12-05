@@ -1,0 +1,16 @@
+{
+  "name": "luau-sentry",
+  "tree": {
+    "$className": "DataModel",
+
+    "ReplicatedStorage": {
+			"Sentry": {
+				"$path": "src/sentry"
+			}
+    },
+
+    "ServerScriptService": {
+      "$path": "src/server"
+    }
+  }
+}

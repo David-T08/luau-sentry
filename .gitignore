@@ -1,0 +1,9 @@
+# Project place file
+/luau-sentry.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# DSN file, not used in production, omit from git
+/src/server/main/dsn.luau
