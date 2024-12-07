@@ -4,7 +4,7 @@ local envelopeEventTypes = {
 
 type Level = 'fatal' | 'error' | 'warning' | 'info' | 'debug'
 
-export type ServerOptions = {
+export type Options = {
 	dsn: string,
 
 	-- The /store endpoint is marked as deprecated, but the use of /envelope requires you to use a Relay (https://docs.sentry.io/product/relay/)
@@ -22,10 +22,6 @@ export type ServerOptions = {
 	-- Allows the capturing of environment variables using getfenv()
 	-- Only use this if needed, as getfenv() disables Luau's performance optimizations
 	captureEnvironment: boolean?
-}
-
-export type ClientOptions = {
-	maxBreadcrumbs: number,
 }
 
 export type Breadcrumb = {
@@ -62,7 +58,8 @@ export type Event = {
 export type _sentry_impl = {
 	__index: _sentry_impl,
 
-	init: (options: ServerOptions | ClientOptions) -> Sentry,
+	init: (options: Options, name: string) -> Sentry,
+	get: (name: string) -> Sentry,
 
 	globalHub: (self: Sentry) -> Hub,
 	currentHub: (self: Sentry) -> Hub,
@@ -72,12 +69,14 @@ export type _sentry_impl = {
 	captureEvent: (self: Sentry, event: Event) -> string,
 	captureException: (self: Sentry, exception: Exception) -> string,
 
+	configureScope: (self: Sentry, (scope: Scope) -> ()) -> (),
+
 	lastEventId: (self: Sentry) -> string?
 }
 
 export type Sentry = typeof(setmetatable({} :: {
+	-- Global hub which all threads inherit from
 	_main_hub: Hub,
-
 	-- Each thread has its own hub
 	_hubs: {[string]: Hub},
 
@@ -86,9 +85,13 @@ export type Sentry = typeof(setmetatable({} :: {
 
 export type _hub_impl = {
 	__index: _hub_impl,
+	__tostring: (self: Hub) -> string,
 
-	pushScope: (self: Hub) -> (),
-	popScope: (self: Hub) -> (),
+	new: (transport: Transporter, scope: Scope?) -> Hub,
+	clone: (self: Hub) -> Hub,
+
+	-- Returns a function that pops the scope, to help prevent stack underflow
+	pushScope: (self: Hub) -> () -> (),
 
 	captureEvent: (self: Hub, event: Event) -> string,
 	captureException: (self: Hub, exception: Exception) -> string,
@@ -98,12 +101,15 @@ export type _hub_impl = {
 export type Hub = typeof(setmetatable({} :: {
 	transport: Transporter,
 
-	scopes: {Scope},
+	stack: {Scope},
 	_lastEventId: string?,
 }, {} :: _hub_impl))
 
 export type _scope_impl = {
 	__index: _scope_impl,
+
+	new: () -> Scope,
+	clone: (self: Scope) -> Scope,
 
 	setUser: (self: Scope, player: Player) -> (),
 
@@ -114,8 +120,8 @@ export type _scope_impl = {
 	setTags: (self: Scope, tags: {[string]: any}) -> (),
 
 	-- Will not implement for now, still trying to figure out what this context is
-	_setContext: (self: Scope) -> (),
-	_setFingerprint: (self: Scope) -> (),
+	-- _setContext: (self: Scope) -> (),
+	-- _setFingerprint: (self: Scope) -> (),
 
 	setLevel: (self: Scope, level: Level) -> (),
 	setTransaction: (self: Scope, name: string) -> (),
@@ -125,18 +131,18 @@ export type _scope_impl = {
 
 	addBreadcrumb: (self: Scope, breadcrumb: Breadcrumb) -> (),
 
-	applyToEvent: (event: Event) -> (),
+	applyToEvent: (self: Scope, event: Event) -> (),
 }
 
 export type Scope = typeof(setmetatable({} :: {
-	extra: {[string]: any},
+	extras: {[string]: any},
 	tags: {[string]: any},
 
 	user: {
 		id: string,
 		username: string,
 		locale: string
-	},
+	}?,
 
 	transaction: string?,
 
@@ -148,7 +154,7 @@ export type Scope = typeof(setmetatable({} :: {
 export type _transporter_impl = {
 	__index: _transporter_impl,
 
-	init: (options: { dsn: string?, supportsEnvelopes: boolean? } ) -> Transporter
+	init: (options: Options) -> Transporter
 }
 
 export type DSNComponents = {

@@ -5,4 +5,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DSN = require(script.dsn)
 local Sentry = require(ReplicatedStorage.Sentry)
 
-print(Sentry.init({ dsn = DSN }))
+local ServerLogger = Sentry.init({
+	dsn = DSN
+}, "Server")
+
+print(ServerLogger:currentHub())
+print(ServerLogger:globalHub())
+
+ServerLogger:configureScope(function(scope)
+	
+end)
