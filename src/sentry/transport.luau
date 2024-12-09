@@ -7,10 +7,10 @@ local SERVER_CONTEXT = RunService:IsServer()
 local sdkInfo = require(script.Parent.info)
 local types = require(script.Parent.types)
 
-local transporter: types._transporter_impl = {} :: types._transporter_impl
-transporter.__index = transporter
+local transport: types._transport_impl = {} :: types._transport_impl
+transport.__index = transport
 
-function transporter.init(options)
+function transport.init(options)
 	local object = {
 		dsn = { protocol = "", publicKey = "", url = "", projectId = ""  }
 	}
@@ -44,12 +44,12 @@ function transporter.init(options)
 	object.lastRequest = -1
 	object.retry_after = -1
 
-	setmetatable(object, transporter)
+	setmetatable(object, transport)
 	return object
 end
 
 
 
--- function transporter:_
+-- function transport:_
 
-return transporter
+return transport

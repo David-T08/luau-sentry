@@ -1,5 +1,5 @@
 --!strict
-local transporter = require(script.transporter)
+local transport = require(script.transport)
 local hub = require(script.hub)
 local types = require(script.types)
 
@@ -17,7 +17,7 @@ function sentrySDK.init(options, name)
 	assert(name, `Sentry client name is required!`)
 	assert(clients[name] == (nil :: any), `Sentry client '{name}' already exists!`)
 
-	local transport = transporter.init(options)
+	local transport = transport.init(options)
 
 	local mainHub = hub.new(transport)
 	local newSentry = {
@@ -41,7 +41,7 @@ function sentrySDK.get(name)
 	local client = clients[name]
 	assert(client, `Sentry client '{name}' not found!`)
 
-	return clients[name]
+	return client
 end
 
 function sentrySDK:globalHub()
@@ -60,10 +60,6 @@ function sentrySDK:currentHub()
 	end
 
 	return found
-end
-
-function sentrySDK:transport()	
-	return self.transport
 end
 
 function sentrySDK:captureMessage(message)
@@ -95,8 +91,4 @@ end
 -- end_session()
 
 
-return {
-	init = sentrySDK.init,
-
-	transporter = transporter
-}
+return sentrySDK
