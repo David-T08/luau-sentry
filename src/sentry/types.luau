@@ -24,8 +24,11 @@ export type Options = {
 	captureEnvironment: boolean?
 }
 
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/breadcrumbs/
 export type Breadcrumb = {
+	-- https://develop.sentry.dev/sdk/data-model/event-payloads/breadcrumbs/#breadcrumb-types
 	type: string,
+	category: string,
 
 	message: string,
 	level: string,
@@ -38,18 +41,105 @@ export type Breadcrumb = {
 -- 	Items: {Item}
 -- }
 
-export type Exception = {
+type StackFrame = {
+	filename: string,
+	["function"]: string,
+	lineno: number,
 	
+	-- this might stay? IDK, need to try it out
+	module: string,
 }
 
-export type Event = {
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/stacktrace/
+export type Stacktrace = {
+	frames: {StackFrame}
+}
+
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/exception/
+export type Exception = {
+	type: string,
+	value: string,
+
+	module: string,
+	-- Determining whether this is needed or not?
+	-- Is it important to know what thread it was?
+	thread_id: string,
+	stacktrace: Stacktrace
+}
+
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/request/
+export type Request = {
+	method: string,
+	url: string,
+	
+	-- ["content-type", "application/json"]
+	headers: { {string} },
+}
+
+type DeviceContext = {
+	name: string,
+	orientation: string,
+	screen_resolution: string,
+
+	-- This might be possible to get?
+	-- May be removed
+	memory_size: number, 
+	usable_memory: number,
+	low_memory: boolean,
+
+	-- I'm thinking os.clock() for this?
+	boot_time: number,
+
+	device_type: string,
+	supports_vibration: boolean,
+	supports_accelerometer: boolean,
+	supports_gyroscope: boolean,
+}
+
+type CultureContext = {
+	timezone: string,
+	locale: string
+}
+
+local Event = {
+	event_id = "",
+	timestamp = 0,
+	platform = "other",
+
+	level = "error",
+
+	extra = {},
+	tags = {}
+}
+
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/message/
+export type Message = {
+	formatted: string
+}
+
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/user/
+export type User = {
+	id: string,
+	username: string,
+
+	geo: {
+		["country-code"]: string,
+		region: string
+	}
+}
+
+export type Event = typeof(Event) & {
 	event_id: string,
 	timestamp: number | string,
 	platform: 'other',
 
-	level: Level,
-	environment: 'production' | 'development',
-	logger: string | 'server' | 'client',
+	level: Level?,
+	environment: 'production' | 'development'?,
+	logger: string | 'server' | 'client'?,
+
+	release: string?,
+	dist: string?,
+	fingerprint: {string}?,
 
 	extra: {[string]: any}?,
 	tags: {[string]: any}?,
@@ -63,7 +153,6 @@ export type _sentry_impl = {
 
 	globalHub: (self: Sentry) -> Hub,
 	currentHub: (self: Sentry) -> Hub,
-	transport: (self: Sentry) -> Transporter,
 
 	captureMessage: (self: Sentry, message: string) -> string,
 	captureEvent: (self: Sentry, event: Event) -> string,
@@ -80,14 +169,14 @@ export type Sentry = typeof(setmetatable({} :: {
 	-- Each thread has its own hub
 	_hubs: {[string]: Hub},
 
-	transport: Transporter
+	transport: Transport
 }, {} :: _sentry_impl))
 
 export type _hub_impl = {
 	__index: _hub_impl,
 	__tostring: (self: Hub) -> string,
 
-	new: (transport: Transporter, scope: Scope?) -> Hub,
+	new: (transport: Transport, scope: Scope?) -> Hub,
 	clone: (self: Hub) -> Hub,
 
 	-- Returns a function that pops the scope, to help prevent stack underflow
@@ -99,7 +188,7 @@ export type _hub_impl = {
 }
 
 export type Hub = typeof(setmetatable({} :: {
-	transport: Transporter,
+	transport: Transport,
 
 	stack: {Scope},
 	_lastEventId: string?,
@@ -138,11 +227,7 @@ export type Scope = typeof(setmetatable({} :: {
 	extras: {[string]: any},
 	tags: {[string]: any},
 
-	user: {
-		id: string,
-		username: string,
-		locale: string
-	}?,
+	user: User,
 
 	transaction: string?,
 
@@ -151,10 +236,10 @@ export type Scope = typeof(setmetatable({} :: {
 	context: {[string]: any},
 }, {} :: _scope_impl))
 
-export type _transporter_impl = {
-	__index: _transporter_impl,
+export type _transport_impl = {
+	__index: _transport_impl,
 
-	init: (options: Options) -> Transporter
+	init: (options: Options) -> Transport
 }
 
 export type DSNComponents = {
@@ -164,13 +249,13 @@ export type DSNComponents = {
 	projectId: string
 }
 
-export type Transporter = typeof(setmetatable({} :: {
+export type Transport = typeof(setmetatable({} :: {
 	dsn: DSNComponents,
 	basePath: string,
 
 	envelopeSupport: boolean,
 	lastRequest: number,
 	retry_after: number
-}, {} :: _transporter_impl))
+}, {} :: _transport_impl))
 
 return {}
