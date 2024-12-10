@@ -104,25 +104,6 @@ type CultureContext = {
 	locale: string
 }
 
--- Base event template
-local Event = {
-	event_id = "",
-	timestamp = 0,
-	platform = "other",
-
-	level = "error",
-	logger = if RunService:IsServer() then 'server' else 'client',
-	environment = if RunService:IsStudio() then 'development' else 'production',
-
-	extra = {},
-	tags = {},
-
-	sdk = {
-		name = sdkInfo.name,
-		version = sdkInfo.version
-	}
-}
-
 -- https://develop.sentry.dev/sdk/data-model/event-payloads/message/
 export type Message = {
 	formatted: string
@@ -139,8 +120,27 @@ export type User = {
 	}
 }
 
+-- Base event template
+local Event = {
+	event_id = "",
+	timestamp = 0,
+	platform = "other",
+
+	level = "error",
+	logger = if RunService:IsServer() then "server" else "client",
+	environment = if RunService:IsStudio() then "development" else "production",
+
+	extra = {},
+	tags = {},
+
+	sdk = {
+		name = sdkInfo.name,
+		version = sdkInfo.version,
+	},
+} :: Event
+
 -- https://develop.sentry.dev/sdk/data-model/event-payloads/
-export type Event = typeof(Event) & {
+export type Event = {
 	event_id: string,
 	timestamp: number,
 	platform: 'other',
@@ -159,7 +159,7 @@ export type Event = typeof(Event) & {
 
 	user: User?,
 	breadcrumbs: {Breadcrumb}?,
-
+	message: Message?,
 	exception: {Exception}?,
 	contexts: {
 		device: DeviceContext?,
@@ -206,20 +206,20 @@ export type _hub_impl = {
 	__index: _hub_impl,
 	__tostring: (self: Hub) -> string,
 
-	new: (transport: Transport, scope: Scope?) -> Hub,
+	new: (transport: Transport, scope: Scope?, sampleRate: number?) -> Hub,
 	clone: (self: Hub) -> Hub,
 
 	-- Returns a function that pops the scope, to help prevent stack underflow
 	pushScope: (self: Hub) -> () -> (),
 
-	captureEvent: (self: Hub, event: Event) -> string,
+	captureEvent: (self: Hub, event: Event, scope: Scope) -> string,
 	captureException: (self: Hub, exception: Exception) -> string,
 	captureMessage: (self: Hub, message: string) -> string,
 }
 
 export type Hub = typeof(setmetatable({} :: {
 	transport: Transport,
-
+	sampleRate: number,
 	stack: {Scope},
 	_lastEventId: string?,
 }, {} :: _hub_impl))
@@ -254,7 +254,7 @@ export type _scope_impl = {
 	clearBreadcrumbs: (self: Scope) -> (),
 
 	addEventProcessor: (self: Scope, processor: EventProcessor) -> (),
-	applyToEvent: (self: Scope, event: Event) -> (),
+	applyToEvent: (self: Scope, event: Event) -> Event,
 	__tostring: (self: Scope) -> string,
 }
 
