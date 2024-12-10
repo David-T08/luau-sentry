@@ -148,9 +148,6 @@ function scope:applyToEvent(event)
 	end
 
 	return event
-	-- TODO: invoke before-send hook
-
-	-- TODO: dispatch to transport
 end
 
 function scope:__tostring()
