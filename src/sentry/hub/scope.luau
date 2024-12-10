@@ -4,35 +4,54 @@ local Sentry = script.Parent.Parent
 local types = require(Sentry.types)
 local util = require(Sentry.util)
 
-local deepCopy = util.deepCopy
 local scope: types._scope_impl = {} :: types._scope_impl
 scope.__index = scope
 
-function scope.new()
-	return setmetatable({
-		extras = {},
-		tags = {},
-		breadcrumbs = {},
-		context = {},
+local defaultScope = {
+	extras = {},
+	tags = {},
 
-		-- Okay luau-lsp, yes, complain about this
-		level = 'info' :: 'info',
-	}, scope)
+	-- Fill in default useful things
+	-- Only typechecking bruh
+	level = "error" :: "error",
+	logger = types.Event.logger,
+	environment = types.Event.environment,
+
+	_eventProcessors = {},
+}
+
+function scope.new()
+	return setmetatable(util.deepCopy(defaultScope), scope)
 end
 
 function scope:clone()
 	local newScope = scope.new()
-	newScope.extras = deepCopy(self.extras)
-	newScope.tags = deepCopy(self.tags)
-	newScope.breadcrumbs = deepCopy(self.breadcrumbs)
-	newScope.context = deepCopy(self.context)
-	newScope.level = self.level
+
+	for key, value in pairs(self) do
+		newScope[key] = if type(value) == "table" then util.deepCopy(value) else value
+	end
 
 	return newScope
 end
 
+function scope:clear()
+	for key, _ in pairs(self) do
+		if key == '_eventProcessors' then continue end
+
+		local default = defaultScope[key]
+		if default then
+			self[key] = if typeof(default) == 'table' then util.deepCopy(default) else default
+		else
+			self[key] = nil
+		end
+	end
+end
+
 function scope:setUser(player)
-	
+	if not player then
+		self.user = nil
+		return
+	end
 end
 
 function scope:setExtra(key, value)
@@ -55,33 +74,92 @@ function scope:setTags(tags)
 	end
 end
 
-local allowedLevels = {'info', 'debug', 'error', 'warning', 'fatal'}
+function scope:setEnvironment(env)
+	self.environment = env
+end
+
+function scope:setRelease(release)
+	self.release = release
+end
+
+function scope:setLogger(logger)
+	self.logger = logger
+end
+
+function scope:setDist(dist)
+	self.dist = dist
+end
+
+function scope:setContext(key, context) end
+
+function scope:setFingerprint(fingerprint)
+	self.fingerprint = fingerprint
+end
+
+local allowedLevels = { "info", "debug", "error", "warning", "fatal" }
 function scope:setLevel(level)
-	if not table.find(allowedLevels, level) then error("Error later") end
+	if not table.find(allowedLevels, level) then
+		error("Error later")
+	end
 
 	-- why can a string not union??
 	-- just gotta do this weird cast here
-	self.level = level :: 'info'
+	self.level = level :: "info"
 end
 
 function scope:setTransaction(name)
 	self.transaction = name
 end
 
-function scope:clear()
-	self.breadcrumbs = {}
-	self.extras = {}
-	self.tags = {}
-	
-	self.user = nil
-end
+function scope:addBreadcrumb(breadcrumb) end
 
 function scope:clearBreadcrumbs()
 	self.breadcrumbs = {}
 end
 
-function scope:applyToEvent(evet)
-	
+function scope:addEventProcessor(processor)
+	table.insert(self._eventProcessors, processor)
+end
+
+function scope:applyToEvent(event)
+	-- Apply scope to event
+	for key, value in pairs(self) do
+		if key == "_eventProcessors" then
+			continue
+		end
+
+		event[key] = if type(value) == "table" then util.deepCopy(value) else value
+	end
+
+	-- Apply event processors
+	for _, processor in ipairs(self._eventProcessors) do
+		local success, newEvent = pcall(processor, event)
+
+		if not success then
+			warn(`Event processor failed: {newEvent}`)
+			return
+		end
+
+		-- Drop if no event is returned
+		if not newEvent then
+			return
+		end
+		event = newEvent
+	end
+
+	return event
+	-- TODO: invoke before-send hook
+
+	-- TODO: dispatch to transport
+end
+
+function scope:__tostring()
+	local out = { "Scope" }
+	for key, value in pairs(self :: any) do
+		table.insert(out, `  {key} = {value}`)
+	end
+
+	return table.concat(out, "\n")
 end
 
 return scope

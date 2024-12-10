@@ -1,16 +1,18 @@
 --!strict
-
+local HttpService = game:GetService("HttpService")
 local Sentry = script.Parent
 
 local types = require(Sentry.types)
 local _scope = require(script.scope)
+local util = require(Sentry.util)
 
 local hub: types._hub_impl = {} :: types._hub_impl
 hub.__index = hub
 
-function hub.new(transport, scope)
+function hub.new(transport, scope, sampleRate)
 	return setmetatable({
 		transport = transport,
+		sampleRate = sampleRate or 0.5,
 		stack = {scope or _scope.new()}
 	}, hub)
 end
@@ -32,8 +34,23 @@ function hub:pushScope()
 	end
 end
 
-function hub:captureEvent(event)
-	return 'not-implemented'
+function hub:captureEvent(event, scope)
+	if self.sampleRate == 0 then return end
+	if math.random() > self.sampleRate then return end
+
+	event.event_id = HttpService:GenerateGUID(false):gsub("-", "")
+	event.timestamp = DateTime.now().UnixTimestampMillis
+
+	event = scope:applyToEvent(event)
+	if not event then return end
+
+	local success, json = pcall(HttpService.JSONEncode, HttpService, event)
+	if not success then
+		warn(`Failed to encode event payload: {json}`)
+		return
+	end
+
+	-- self.transport
 end
 
 function hub:captureException(exception)
@@ -41,7 +58,16 @@ function hub:captureException(exception)
 end
 
 function hub:captureMessage(message)
-	return 'not-implemented'
+	local newEvent = util.deepCopy(types.Event)
+	newEvent.message = {
+		formatted = message
+	}
+
+	return self:captureEvent({
+		message = {
+			formatted = message
+		}
+	} :: any, self.stack[#self.stack])
 end
 
 local function threadId()
