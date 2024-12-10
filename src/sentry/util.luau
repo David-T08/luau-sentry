@@ -3,6 +3,7 @@
 local util = {}
 
 function util.deepCopy<T>(tbl: T): T
+	if not tbl then return nil :: any end
 	local copy = {}
 
 	for key, value in pairs(tbl :: any) do
