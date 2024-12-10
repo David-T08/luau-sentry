@@ -1,3 +1,6 @@
+local RunService = game:GetService("RunService")
+local sdkInfo = require(script.Parent.info)
+
 local envelopeEventTypes = {
 	event = {event_id = { required = true, value = "" }}
 }
@@ -101,15 +104,23 @@ type CultureContext = {
 	locale: string
 }
 
+-- Base event template
 local Event = {
 	event_id = "",
 	timestamp = 0,
 	platform = "other",
 
 	level = "error",
+	logger = if RunService:IsServer() then 'server' else 'client',
+	environment = if RunService:IsStudio() then 'development' else 'production',
 
 	extra = {},
-	tags = {}
+	tags = {},
+
+	sdk = {
+		name = sdkInfo.name,
+		version = sdkInfo.version
+	}
 }
 
 -- https://develop.sentry.dev/sdk/data-model/event-payloads/message/
@@ -128,22 +139,41 @@ export type User = {
 	}
 }
 
+-- https://develop.sentry.dev/sdk/data-model/event-payloads/
 export type Event = typeof(Event) & {
 	event_id: string,
-	timestamp: number | string,
+	timestamp: number,
 	platform: 'other',
 
-	level: Level?,
-	environment: 'production' | 'development'?,
-	logger: string | 'server' | 'client'?,
+	level: Level,
+	logger: string | 'server' | 'client',
+	environment: string | 'production' | 'development',
 
+	transaction: string?,
+	fingerprint: {string}?,
 	release: string?,
 	dist: string?,
-	fingerprint: {string}?,
 
 	extra: {[string]: any}?,
 	tags: {[string]: any}?,
+
+	user: User?,
+	breadcrumbs: {Breadcrumb}?,
+
+	exception: {Exception}?,
+	contexts: {
+		device: DeviceContext?,
+		culture: CultureContext?
+	}?,
+
+	-- Autofilled
+	sdk: {
+		name: string,
+		version: string
+	}
 }
+
+export type EventProcessor = (event: Event) -> (Event?)
 
 export type _sentry_impl = {
 	__index: _sentry_impl,
@@ -198,42 +228,61 @@ export type _scope_impl = {
 	__index: _scope_impl,
 
 	new: () -> Scope,
+	clear: (self: Scope) -> (),
 	clone: (self: Scope) -> Scope,
 
-	setUser: (self: Scope, player: Player) -> (),
+	setUser: (self: Scope, player: Player?) -> (),
 
-	setExtra: (self: Scope, key: string, value: any) -> (),
-	setExtras: (self: Scope, extras: {[string]: any}) -> (),
+	setExtra: (self: Scope, key: string, value: any?) -> (),
+	setExtras: (self: Scope, extras: {[string]: any?}) -> (),
 
 	setTag: (self: Scope, tag: string, value: any) -> (),
 	setTags: (self: Scope, tags: {[string]: any}) -> (),
 
-	-- Will not implement for now, still trying to figure out what this context is
-	-- _setContext: (self: Scope) -> (),
-	-- _setFingerprint: (self: Scope) -> (),
+	setEnvironment: (self: Scope, env: string?) -> (),
+	setRelease: (self: Scope, release: string?) -> (),
+	setLogger: (self: Scope, logger: string?) -> (),
+	setDist: (self: Scope, dist: string?) -> (),
 
-	setLevel: (self: Scope, level: Level) -> (),
-	setTransaction: (self: Scope, name: string) -> (),
+	setContext: (self: Scope, type: 'device' | 'culture', data: DeviceContext | CultureContext) -> (),
+	setFingerprint: (self: Scope, fingerprint: {string}?) -> (),
 	
-	clear: (self: Scope) -> (),
+	setLevel: (self: Scope, level: Level) -> (),
+	setTransaction: (self: Scope, name: string?) -> (),
+	
+	addBreadcrumb: (self: Scope, breadcrumb: Breadcrumb) -> (),
 	clearBreadcrumbs: (self: Scope) -> (),
 
-	addBreadcrumb: (self: Scope, breadcrumb: Breadcrumb) -> (),
-
+	addEventProcessor: (self: Scope, processor: EventProcessor) -> (),
 	applyToEvent: (self: Scope, event: Event) -> (),
+	__tostring: (self: Scope) -> string,
 }
 
+--[[
+
+All values in the event payload that are not basic attributes are data interfaces. 
+The key is the canonical interface short name, and the value is the data expected by the interface (usually a dictionary).
+For the most part, interfaces are an evolving part of Sentry. Like with attributes, SDKs are expected to assume that more interfaces will be added at any point in the future.
+]]
 export type Scope = typeof(setmetatable({} :: {
 	extras: {[string]: any},
 	tags: {[string]: any},
 
-	user: User,
+	user: User?,
+	breadcrumbs: {Breadcrumb}?,
+
+	fingerprint: {string}?,
+	release: string?,
+	dist: string?,
 
 	transaction: string?,
+	environment: string?,
+	logger: string?,
 
-	level: Level,
-	breadcrumbs: {Breadcrumb},
-	context: {[string]: any},
+	level: Level?,
+	context: {[string]: any}?,
+
+	_eventProcessors: {EventProcessor}
 }, {} :: _scope_impl))
 
 export type _transport_impl = {
@@ -258,4 +307,4 @@ export type Transport = typeof(setmetatable({} :: {
 	retry_after: number
 }, {} :: _transport_impl))
 
-return {}
+return {Event = Event}
