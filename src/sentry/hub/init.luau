@@ -39,10 +39,19 @@ function hub:captureEvent(event, scope)
 	if math.random() > self.sampleRate then return end
 
 	event.event_id = HttpService:GenerateGUID(false):gsub("-", "")
-	event.timestamp = DateTime.now().UnixTimestampMillis
+	event.timestamp = DateTime.now().UnixTimestamp
 
-	event = scope:applyToEvent(event)
+	local new = scope:applyToEvent(event)
 	if not event then return end
+
+	event = new :: types.Event
+
+	for key, value in pairs(event) do
+		if typeof(value) ~= 'table' then continue end
+
+		local kept = util.removeIfEmpty(value)
+		event[key] = kept
+	end
 
 	local success, json = pcall(HttpService.JSONEncode, HttpService, event)
 	if not success then
@@ -50,11 +59,18 @@ function hub:captureEvent(event, scope)
 		return
 	end
 
-	-- self.transport
+	return self.transport:sendEvent(json)
 end
 
+-- TODO: Finish implementation further
 function hub:captureException(exception)
-	return 'not-implemented'
+	local newEvent = util.deepCopy(types.Event)
+	newEvent.exception = {
+		type = "Error",
+		value = exception
+	}
+
+	return self:captureEvent(newEvent, self.stack[#self.stack])
 end
 
 function hub:captureMessage(message)

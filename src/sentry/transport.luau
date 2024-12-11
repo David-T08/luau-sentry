@@ -32,11 +32,8 @@ function transport.init(options)
 			publicKey = publicKey :: string,
 			projectId = projectId,
 			
-			url = `{protocol}://{url}`,
+			url = `{protocol}://{url}/api/{projectId}`,
 		}
-	
-	elseif not SERVER_CONTEXT then
-		
 	end
 
 	object.basePath = `{object.dsn.protocol}://{object.dsn.url}`
@@ -48,8 +45,33 @@ function transport.init(options)
 	return object
 end
 
+local function sendRequest(self: types.Transport, path: string, body: string, envelope: boolean?)
+	if not SERVER_CONTEXT then return end
 
+	local auth = `Sentry sentry_version=7, sentry_key={self.dsn.publicKey}, sentry_client={sdkInfo.name}/{sdkInfo.version}`
+	local success, response = pcall(HttpService.RequestAsync, HttpService, {
+		Url = `{self.dsn.url}{path}`,
+		Method = 'POST',
 
--- function transport:_
+		Headers = {
+			["X-Sentry-Auth"] = auth,
+			["Content-Type"] = if envelope then 'application/x-sentry-envelope' else 'application/json',
+		},
+
+		Body = body
+	})
+
+	return success, response
+end
+
+-- TODO: Implement envelope support
+-- TODO: Implement rate limiting
+-- TOOO: Implement retries
+-- TODO: Implement queue
+-- TODO: Implement error handling
+
+function transport:sendEvent(eventPayload)
+	return sendRequest(self, "/store/", eventPayload)
+end
 
 return transport

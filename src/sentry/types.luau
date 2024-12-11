@@ -186,7 +186,7 @@ export type _sentry_impl = {
 
 	captureMessage: (self: Sentry, message: string) -> string,
 	captureEvent: (self: Sentry, event: Event) -> string,
-	captureException: (self: Sentry, exception: Exception) -> string,
+	captureException: (self: Sentry, exception: string) -> string,
 
 	configureScope: (self: Sentry, (scope: Scope) -> ()) -> (),
 
@@ -212,9 +212,9 @@ export type _hub_impl = {
 	-- Returns a function that pops the scope, to help prevent stack underflow
 	pushScope: (self: Hub) -> () -> (),
 
-	captureEvent: (self: Hub, event: Event, scope: Scope) -> string,
-	captureException: (self: Hub, exception: Exception) -> string,
-	captureMessage: (self: Hub, message: string) -> string,
+	captureEvent: (self: Hub, event: Event, scope: Scope) -> (),
+	captureException: (self: Hub, exception: string) -> (),
+	captureMessage: (self: Hub, message: string) -> (),
 }
 
 export type Hub = typeof(setmetatable({} :: {
@@ -254,16 +254,10 @@ export type _scope_impl = {
 	clearBreadcrumbs: (self: Scope) -> (),
 
 	addEventProcessor: (self: Scope, processor: EventProcessor) -> (),
-	applyToEvent: (self: Scope, event: Event) -> Event,
+	applyToEvent: (self: Scope, event: Event) -> Event?,
 	__tostring: (self: Scope) -> string,
 }
 
---[[
-
-All values in the event payload that are not basic attributes are data interfaces. 
-The key is the canonical interface short name, and the value is the data expected by the interface (usually a dictionary).
-For the most part, interfaces are an evolving part of Sentry. Like with attributes, SDKs are expected to assume that more interfaces will be added at any point in the future.
-]]
 export type Scope = typeof(setmetatable({} :: {
 	extras: {[string]: any},
 	tags: {[string]: any},
@@ -288,7 +282,8 @@ export type Scope = typeof(setmetatable({} :: {
 export type _transport_impl = {
 	__index: _transport_impl,
 
-	init: (options: Options) -> Transport
+	init: (options: Options) -> Transport,
+	sendEvent: (self: Transport, eventPayload: string) -> (),
 }
 
 export type DSNComponents = {

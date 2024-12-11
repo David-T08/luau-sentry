@@ -150,6 +150,7 @@ function scope:applyToEvent(event)
 	return event
 end
 
+-- For debugging, will remove later
 function scope:__tostring()
 	local out = { "Scope" }
 	for key, value in pairs(self :: any) do
