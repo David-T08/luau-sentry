@@ -2,9 +2,10 @@
 local HttpService = game:GetService("HttpService")
 local Sentry = script.Parent
 
-local types = require(Sentry.types)
 local _scope = require(script.scope)
+local types = require(Sentry.types)
 local util = require(Sentry.util)
+local log = require(Sentry.log)
 
 local hub: types._hub_impl = {} :: types._hub_impl
 hub.__index = hub
@@ -12,7 +13,7 @@ hub.__index = hub
 function hub.new(transport, scope, sampleRate)
 	return setmetatable({
 		transport = transport,
-		sampleRate = sampleRate or 0.5,
+		sampleRate = sampleRate or 1,
 		stack = {scope or _scope.new()}
 	}, hub)
 end
@@ -55,11 +56,16 @@ function hub:captureEvent(event, scope)
 
 	local success, json = pcall(HttpService.JSONEncode, HttpService, event)
 	if not success then
-		warn(`Failed to encode event payload: {json}`)
+		log.log(2, `Failed to encode event payload: {json}`)
 		return
 	end
 
-	return self.transport:sendEvent(json)
+	local transportSuccess, response = self.transport:sendEvent(json)
+	if transportSuccess then
+		self._lastEventId = response
+	end
+
+	return if transportSuccess then response else nil
 end
 
 -- TODO: Finish implementation further

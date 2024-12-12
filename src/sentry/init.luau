@@ -18,8 +18,9 @@ function sentrySDK.init(options, name)
 	assert(clients[name] == (nil :: any), `Sentry client '{name}' already exists!`)
 
 	local transport = transport.init(options)
-
+	
 	local mainHub = hub.new(transport)
+
 	local newSentry = {
 		_main_hub = mainHub,
 		_hubs = {
@@ -62,12 +63,17 @@ function sentrySDK:currentHub()
 	return found
 end
 
+-- TODO: Return string event_id here
+-- Will do later once debugging is done
 function sentrySDK:captureMessage(message)
 	return self:currentHub():captureMessage(message)
 end	
 
 function sentrySDK:captureEvent(event)
-	return self:currentHub():captureEvent(event)
+	local hub = self:currentHub()
+	local stack = hub.stack
+
+	return self:currentHub():captureEvent(event, stack[#stack])
 end
 
 function sentrySDK:captureException(exception)

@@ -3,6 +3,7 @@ local Sentry = script.Parent.Parent
 
 local types = require(Sentry.types)
 local util = require(Sentry.util)
+local log = require(Sentry.log)
 
 local scope: types._scope_impl = {} :: types._scope_impl
 scope.__index = scope
@@ -52,6 +53,19 @@ function scope:setUser(player)
 		self.user = nil
 		return
 	end
+
+	-- Capitalize country: en-us -> en-US
+	local localeId = player.LocaleId:gsub("-%w+", string.upper)
+	
+	self.user = {
+		id = tostring(player.UserId),
+		username = player.Name,
+
+		geo = {
+			["country-code"] = localeId,
+			region = "unknown" -- TODO: Implement
+		}
+	}
 end
 
 function scope:setExtra(key, value)
@@ -99,7 +113,7 @@ end
 local allowedLevels = { "info", "debug", "error", "warning", "fatal" }
 function scope:setLevel(level)
 	if not table.find(allowedLevels, level) then
-		error("Error later")
+		log.log(2, `Invalid level: {level}, supported levels: {table.concat(allowedLevels, ", ")}`)
 	end
 
 	-- why can a string not union??
@@ -136,7 +150,7 @@ function scope:applyToEvent(event)
 		local success, newEvent = pcall(processor, event)
 
 		if not success then
-			warn(`Event processor failed: {newEvent}`)
+			log.log(2, `Event processor failed: {newEvent}`)
 			return
 		end
 
