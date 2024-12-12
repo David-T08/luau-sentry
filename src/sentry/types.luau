@@ -1,9 +1,9 @@
 local RunService = game:GetService("RunService")
 local sdkInfo = require(script.Parent.info)
 
-local envelopeEventTypes = {
-	event = {event_id = { required = true, value = "" }}
-}
+-- local envelopeEventTypes = {
+-- 	event = {event_id = { required = true, value = "" }}
+-- }
 
 type Level = 'fatal' | 'error' | 'warning' | 'info' | 'debug'
 
@@ -184,9 +184,9 @@ export type _sentry_impl = {
 	globalHub: (self: Sentry) -> Hub,
 	currentHub: (self: Sentry) -> Hub,
 
-	captureMessage: (self: Sentry, message: string) -> string,
-	captureEvent: (self: Sentry, event: Event) -> string,
-	captureException: (self: Sentry, exception: string) -> string,
+	captureException: (self: Sentry, exception: string) -> string?,
+	captureMessage: (self: Sentry, message: string) -> string?,
+	captureEvent: (self: Sentry, event: Event) -> string?,
 
 	configureScope: (self: Sentry, (scope: Scope) -> ()) -> (),
 
@@ -212,9 +212,9 @@ export type _hub_impl = {
 	-- Returns a function that pops the scope, to help prevent stack underflow
 	pushScope: (self: Hub) -> () -> (),
 
-	captureEvent: (self: Hub, event: Event, scope: Scope) -> (),
-	captureException: (self: Hub, exception: string) -> (),
-	captureMessage: (self: Hub, message: string) -> (),
+	captureEvent: (self: Hub, event: Event, scope: Scope) -> string?,
+	captureException: (self: Hub, exception: string) -> string?,
+	captureMessage: (self: Hub, message: string) -> string?,
 }
 
 export type Hub = typeof(setmetatable({} :: {
@@ -283,7 +283,7 @@ export type _transport_impl = {
 	__index: _transport_impl,
 
 	init: (options: Options) -> Transport,
-	sendEvent: (self: Transport, eventPayload: string) -> (),
+	sendEvent: (self: Transport, eventPayload: string) -> (boolean, string),
 }
 
 export type DSNComponents = {
